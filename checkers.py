@@ -1,8 +1,9 @@
 """Assignment 2 Game Tree Search"""
-# import sys
-# from heapq import heappush, heappop
-# from dataclasses import dataclass, field
-# from typing import Any
+import math
+import sys
+from heapq import heappush, heappop
+from dataclasses import dataclass, field
+from typing import Any
 
 
 class State:
@@ -48,7 +49,7 @@ class State:
         # initialize the board info
         lst = []
         result = ''
-        for i in range(8):
+        for _ in range(8):
             lst.append(['.', '.', '.', '.', '.', '.', '.', '.'])
 
         for key in self.black:
@@ -104,7 +105,7 @@ class State:
         x_dis = destination[0] - position[0]
         y_dis = destination[1] - position[1]
         if abs(x_dis) != 1 or abs(y_dis) != 1:
-            print("ERROR: not eligible diagonal move.")
+            # print("ERROR: not eligible diagonal move.")
             return None
 
         if (destination not in self.red) and (destination not in self.black):
@@ -154,9 +155,38 @@ class State:
                 # remove the piece on destination
                 self.red.pop(destination)
                 return new_des
-        else:
-            print("ERROR: not eligible move: same color in position and destination")
+        # else:
+        #     print("ERROR: not eligible move: same color in position and destination")
         return None
+
+
+def terminal(state: State) -> bool:
+    """Return True if any player in play win."""
+    # Check whether any player in play has no pieces.
+    if len(state.red) == 0 or len(state.black) == 0:
+        return True
+    # Check whether any player in play cannot make a eligible move:
+    if len(expand(state, 'r')) == 0 or len(expand(state, 'b')) == 0:
+        return True
+    return False
+
+
+def txt_to_state(file: str) -> State:
+    """Return a State that convert input form to a game board state."""
+    f = open(file, 'r')
+    str_lst = f.readlines()
+    result = State()
+    for y in range(8):
+        for x in range(8):
+            if str_lst[y][x] == 'r':
+                result.red[(x, y)] = 'r'
+            elif str_lst[y][x] == 'R':
+                result.red[(x, y)] = 'R'
+            elif str_lst[y][x] == 'b':
+                result.black[(x, y)] = 'b'
+            elif str_lst[y][x] == 'B':
+                result.black[(x, y)] = 'B'
+    return result
 
 
 def expand(state: State, player: str) -> list[State]:
@@ -358,18 +388,140 @@ def clone(state: State) -> State:
     return c
 
 
-def utility(state: State, player: str) -> int:
-    """Return a int calculate by utility function."""
-    # TODO: Implement utility function
+def utility(state: State) -> int:
+    """
+    Return a int calculate by utility function.
+    Calculation:
+        - Each red man piece worth 1 point and King worth 2 points
+        - Each black man piece worth -1 point and King worth -2 points
+        - Each piece of black piece that cannot move +2 points
+        - Each piece of red piece that cannot move -2 points
+    """
+    value = 0
+    for key in state.red:
+        if state.red[key] == 'r':
+            value += 1
+        else:
+            value += 2
+    for key in state.black:
+        if state.black[key] == 'b':
+            value -= 1
+        else:
+            value -= 2
+    return value
+
+
+def heuristic(state: State) -> int:
+    """
+    Advanced heuristic function for calculating the trade-off value of a given EXPANDED state.
+    Calculation:
+        - Each red man piece worth 1 point and King worth 2 points
+        - Each black man piece worth -1 point and King worth -2 points
+        - Each piece of black piece that cannot move +2 points
+        - Each piece of red piece that cannot move -2 points
+        - If any piece of player may be captured in next expand
+          +/- 1 point for each man and +/- 3 points for each King (not implemented)
+    """
+    value = 0
+    for key in state.red:
+        if state.red[key] == 'r':
+            value += 1
+        else:
+            value += 2
+        # Does that piece able to move?
+        if len(expand_single(state, key, 'r')) == 0:
+            value -= 2
+
+    for key in state.black:
+        if state.black[key] == 'b':
+            value -= 1
+        else:
+            value -= 2
+        # Does that piece able to move?
+        if len(expand_single(state, key, 'b')) == 0:
+            value += 2
+
+    return value
+
+
+def ab_search(state: State, d_limit: int) -> State:
+    """Minimax search with alpha-beta pruning"""
+    best_move, _ = max_value(state, -math.inf, math.inf, d_limit)
+    return best_move
+
+
+def max_value(state: State, a: float, b: float, d_limit: int):
+    """Minimax function for finding max node"""
+    best_move = None
+    if terminal(state):
+        return best_move, utility(state)
+    elif d_limit == 0:
+        return best_move, heuristic(state)
+    value = -math.inf
+    # Rearrange the list of expanded state by
+    # the heuristic value by descending
+    # (index 0 is largest ont and the last index is the smallest one)
+    ex_lst = expand(state, 'r')
+    ex_lst = rearrange(ex_lst, True)
+    for successor in ex_lst:
+        _, nxt_v = min_value(successor, a, b, d_limit - 1)
+        if value < nxt_v:
+            value = nxt_v
+            best_move = successor
+        # alpha-beta pruning
+        if value >= b:
+            return best_move, value
+        a = max(a, value)
+    return best_move, value
+
+
+def min_value(state: State, a: float, b: float, d_limit: int):
+    """Minimax function for finding min """
+    best_move = None
+    if terminal(state) or d_limit == 0:
+        return best_move, utility(state)
+    value = math.inf
+    # Rearrange the list of expanded state by
+    # the heuristic value by ascending
+    # (index 0 is smallest ont and the last index is the largest one)
+    ex_lst = expand(state, 'b')
+    ex_lst = rearrange(ex_lst, False)
+    for successor in ex_lst:
+        _, nxt_v = max_value(successor, a, b, d_limit - 1)
+        if value > nxt_v:
+            value = nxt_v
+            best_move = successor
+        # alpha-beta pruning
+        if value <= a:
+            return best_move, value
+        b = min(b, value)
+    return best_move, value
+
+
+def rearrange(ex_lst: list[State], reverse: bool) -> list[State]:
+    """
+    Helper function for rearranging state by the heuristic value
+    by descending index 0 is largest ont and
+    the last index is the smallest one.
+    param:
+     - ex_lst: A list of expanded state.
+     - reverse: False means return a list ordered by ascending;
+                True means return a list ordered by descending.
+    """
+    return sorted(ex_lst, key=heuristic, reverse=reverse)
 
 
 if __name__ == '__main__':
     state1 = State()
     print(state1)
     state2 = clone(state1)
-    # state2.black = {(1, 3): 'b'}
-    # state2.red = {(0, 6): 'r', (2, 6): 'r', (4, 6): 'r', (6, 6): 'r', (2, 4): 'r'}
-    state2.black = {(0, 1): 'b', (2, 1): 'b', (4, 1): 'b', (6, 1): 'b', (5, 2): 'b', (2, 6): 'b'}
-    state2.red = {(3, 4): 'R', (1, 7): 'R', (4, 3): 'r'}
-    surr = get_surr(state2, (3, 4), 'r')
-    lst = expand(state2, 'b')
+    state2.black = {(7, 6): 'b'}
+    state2.red = {(6, 7): 'R'}
+    state3 = clone(state1)
+    state3.black = {(1, 3): 'b'}
+    state3.red = {(0, 6): 'r', (2, 6): 'r', (4, 6): 'r', (6, 6): 'r', (2, 4): 'r'}
+
+    print(heuristic(state2), heuristic(state3))
+    # surr = get_surr(state2, (3, 4), 'r')
+    # test_lst = expand(state2, 'b')
+    # bol = terminal(state2)
