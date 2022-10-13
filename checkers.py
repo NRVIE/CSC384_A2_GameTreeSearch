@@ -36,8 +36,10 @@ class State:
     black: dict[tuple, str]
 
     def __init__(self) -> None:
-        self.red = {(7, 2): 'R', (7, 4): 'r', (3, 6): 'r'}
-        self.black = {(4, 1): 'b', (2,  3): 'b', (4, 3): 'b', (3, 4): 'b', (4, 7): 'B'}
+        # self.red = {(7, 2): 'R', (7, 4): 'r', (3, 6): 'r'}
+        # self.black = {(4, 1): 'b', (2,  3): 'b', (4, 3): 'b', (3, 4): 'b', (4, 7): 'B'}
+        self.red = dict()
+        self.black = dict()
 
     def __str__(self) -> str:
         """
@@ -84,7 +86,7 @@ class State:
                 return False
         return True
 
-    def move(self, position: tuple, destination: tuple) -> None:
+    def move(self, position: tuple, destination: tuple):
         """
         Move the piece on the given position to destination position.
         Destination should be diagonal one space forward or backward.
@@ -103,7 +105,7 @@ class State:
         y_dis = destination[1] - position[1]
         if abs(x_dis) != 1 or abs(y_dis) != 1:
             print("ERROR: not eligible diagonal move.")
-            return
+            return None
 
         if (destination not in self.red) and (destination not in self.black):
             # destination is empty, then move piece in position to destination
@@ -119,8 +121,10 @@ class State:
                     self.black[destination] = 'B'
                 else:
                     self.black[destination] = piece
-            return
+            return destination
 
+        # Red piece capture a black piece or nothing happen
+        # if there are no empty space across black piece
         if position in self.red and destination in self.black:
             new_des = (destination[0] + x_dis, destination[1] + y_dis)
             if 0 <= new_des[0] <= 7 and 0 <= new_des[1] <= 7 \
@@ -133,7 +137,10 @@ class State:
                     self.red[new_des] = piece
                 # remove the piece on destination
                 self.black.pop(destination)
+                return new_des
 
+        # Black piece capture a red piece or nothing happen
+        # if there are no empty space across red piece
         elif position in self.black and destination in self.red:
             new_des = (destination[0] + x_dis, destination[1] + y_dis)
             if 0 <= new_des[0] <= 7 and 0 <= new_des[1] <= 7 \
@@ -146,9 +153,10 @@ class State:
                     self.black[new_des] = piece
                 # remove the piece on destination
                 self.red.pop(destination)
+                return new_des
         else:
             print("ERROR: not eligible move: same color in position and destination")
-        return
+        return None
 
 
 def expand(state: State, player: str) -> list[State]:
@@ -164,22 +172,14 @@ def expand(state: State, player: str) -> list[State]:
             s2 = clone(state)
             s3 = clone(state)
             s4 = clone(state)
-            if state.red[key] == 'r':
-                # man can only move forward
-                s1.move(key, (key[0] + 1, key[1] - 1))
-                s2.move(key, (key[0] - 1, key[1] - 1))
-                for i in [s1, s2]:
-                    if i != state and i not in result:
-                        result.append(i)
-            else:
-                # King can move forward and backward
-                s1.move(key, (key[0] + 1, key[1] - 1))
-                s2.move(key, (key[0] - 1, key[1] - 1))
-                s3.move(key, (key[0] + 1, key[1] + 1))
-                s4.move(key, (key[0] - 1, key[1] + 1))
-                for i in [s1, s2, s3, s4]:
-                    if i != state and i not in result:
-                        result.append(i)
+            s1_lst = expand_single(s1, key, 'r')
+            s2_lst = expand_single(s2, key, 'r')
+            s3_lst = expand_single(s3, key, 'r')
+            s4_lst = expand_single(s4, key, 'r')
+            for i in [s1_lst, s2_lst, s3_lst, s4_lst]:
+                for s in i:
+                    if s != state and s not in result:
+                        result.append(s)
     else:
         for key in state.black:
             # Clone 4 states for movement
@@ -187,22 +187,164 @@ def expand(state: State, player: str) -> list[State]:
             s2 = clone(state)
             s3 = clone(state)
             s4 = clone(state)
-            if state.black[key] == 'b':
-                # man can only move forward
-                s1.move(key, (key[0] + 1, key[1] + 1))
-                s2.move(key, (key[0] - 1, key[1] + 1))
-                for i in [s1, s2]:
-                    if i != state and i not in result:
-                        result.append(i)
+            s1_lst = expand_single(s1, key, 'b')
+            s2_lst = expand_single(s2, key, 'b')
+            s3_lst = expand_single(s3, key, 'b')
+            s4_lst = expand_single(s4, key, 'b')
+            for i in [s1_lst, s2_lst, s3_lst, s4_lst]:
+                for s in i:
+                    if s != state and s not in result:
+                        result.append(s)
+    return result
+
+
+def expand_single(state: State, position: tuple, player: str) -> list[State]:
+    """
+    Return a list of State by a given position of piece.
+    Assume the space at position is not empty.
+    """
+    result = []
+    des_lst = []
+    if player == 'r':
+        assert position in state.red
+        # List out all the possible destination
+        if 0 <= (position[0] - 1) <= 7 and 0 <= (position[1] - 1) <= 7:
+            des_lst.append((position[0] - 1, position[1] - 1))
+        if 0 <= (position[0] + 1) <= 7 and 0 <= (position[1] - 1) <= 7:
+            des_lst.append((position[0] + 1, position[1] - 1))
+
+        if state.red[position] == 'R':
+            if 0 <= (position[0] - 1) <= 7 and 0 <= (position[1] + 1) <= 7:
+                des_lst.append((position[0] - 1, position[1] + 1))
+            if 0 <= (position[0] + 1) <= 7 and 0 <= (position[1] + 1) <= 7:
+                des_lst.append((position[0] + 1, position[1] + 1))
+
+        # Get all possible state and multiple capture state by using multi_jump.
+        for des in des_lst:
+            nxt_state = clone(state)
+            curr_position = nxt_state.move(position, des)
+            # Filter out the des that is/are not eligible move
+            if nxt_state != state:
+                if des != curr_position:  # it means that the player had
+                                          # capture his/her opponent's piece
+
+                    if state.red[position] != nxt_state.red[curr_position]:
+                        # Situation when the piece on curr_position promote to a King.
+                        if nxt_state not in result:
+                            result.append(nxt_state)
+                    else:
+                        multi_return = multi_jump(nxt_state, curr_position,
+                                                  get_surr(nxt_state, curr_position, player),
+                                                  player, nxt_state.red[curr_position])
+                        for s in multi_return:
+                            if s not in result:
+                                result.append(s)
+                else:
+                    if nxt_state not in result:
+                        result.append(nxt_state)
+    # For the black player
+    else:
+        assert position in state.black
+        # List out all the possible destination
+        if 0 <= (position[0] - 1) <= 7 and 0 <= (position[1] + 1) <= 7:
+            des_lst.append((position[0] - 1, position[1] + 1))
+        if 0 <= (position[0] + 1) <= 7 and 0 <= (position[1] + 1) <= 7:
+            des_lst.append((position[0] + 1, position[1] + 1))
+
+        if state.black[position] == 'B':
+            if 0 <= (position[0] - 1) <= 7 and 0 <= (position[1] - 1) <= 7:
+                des_lst.append((position[0] - 1, position[1] - 1))
+            if 0 <= (position[0] + 1) <= 7 and 0 <= (position[1] - 1) <= 7:
+                des_lst.append((position[0] + 1, position[1] - 1))
+
+        # Get all possible state and multiple capture state by using multi_jump.
+        for des in des_lst:
+            nxt_state = clone(state)
+            curr_position = nxt_state.move(position, des)
+            # Filter out the des that is/are not eligible move
+            if nxt_state != state:
+                if des != curr_position:  # it means that the player had
+                                          # capture his/her opponent's piece
+                    if state.black[position] != nxt_state.black[curr_position]:
+                        # Situation when the piece on curr_position promote to a King.
+                        if nxt_state not in result:
+                            result.append(nxt_state)
+                    else:
+                        multi_return = multi_jump(nxt_state, curr_position,
+                                                  get_surr(nxt_state, curr_position, player),
+                                                  player, nxt_state.black[curr_position])
+                        for s in multi_return:
+                            if s not in result:
+                                result.append(s)
+                else:
+                    if nxt_state not in result:
+                        result.append(nxt_state)
+    return result
+
+
+def multi_jump(state: State, position: tuple,
+               surr: list[tuple], player: str, piece: str) -> list[State]:
+    """Helper function for expand_single that check surrounding
+    diagonal space of position and find where can do a multiple jump"""
+    result = []
+    if surr == []:
+        return [state]
+    else:
+        for neighbour in surr:
+            nxt_state = clone(state)
+            curr_pos = nxt_state.move(position, neighbour)
+            if state != nxt_state:
+                # Is piece at curr_pos become King?
+                if (piece == 'r' and curr_pos[1] == 0) or (piece == 'b' and curr_pos[1] == 7):
+                    # Turn ends
+                    if nxt_state not in result:
+                        result.append(nxt_state)
+                else:
+                    # Recursion for getting the final state of multiple capture
+                    multi_return = multi_jump(nxt_state, curr_pos,
+                                              get_surr(nxt_state, curr_pos, player), player, piece)
+                    for s in multi_return:
+                        if s not in result:
+                            result.append(s)
             else:
-                # King can move forward and backward
-                s1.move(key, (key[0] + 1, key[1] - 1))
-                s2.move(key, (key[0] - 1, key[1] - 1))
-                s3.move(key, (key[0] + 1, key[1] + 1))
-                s4.move(key, (key[0] - 1, key[1] + 1))
-                for i in [s1, s2, s3, s4]:
-                    if i != state and i not in result:
-                        result.append(i)
+                if nxt_state not in result:
+                    result.append(nxt_state)
+        return result
+
+
+def get_surr(state: State, position: tuple, player: str):
+    """Helper function for getting position of opponent's piece on the adjacent diagonal space."""
+    result = []
+    if player == 'r':
+        if 0 <= (position[0] - 1) <= 7 and 0 <= (position[1] - 1) <= 7 and \
+                (position[0] - 1, position[1] - 1) in state.black:
+            result.append((position[0] - 1, position[1] - 1))
+        if 0 <= (position[0] + 1) <= 7 and 0 <= (position[1] - 1) <= 7 and \
+                (position[0] + 1, position[1] - 1) in state.black:
+            result.append((position[0] + 1, position[1] - 1))
+
+        if state.red[position] == 'R':
+            if 0 <= (position[0] - 1) <= 7 and 0 <= (position[1] + 1) <= 7 and \
+                    (position[0] - 1, position[1] + 1) in state.black:
+                result.append((position[0] - 1, position[1] + 1))
+            if 0 <= (position[0] + 1) <= 7 and 0 <= (position[1] + 1) <= 7 and \
+                    (position[0] + 1, position[1] + 1) in state.black:
+                result.append((position[0] + 1, position[1] + 1))
+    else:
+        if 0 <= (position[0] - 1) <= 7 and 0 <= (position[1] + 1) <= 7 and \
+                (position[0] - 1, position[1] + 1) in state.red:
+            result.append((position[0] - 1, position[1] + 1))
+        if 0 <= (position[0] + 1) <= 7 and 0 <= (position[1] + 1) <= 7 and \
+                (position[0] + 1, position[1] + 1) in state.red:
+            result.append((position[0] + 1, position[1] + 1))
+
+        if state.black[position] == 'B':
+            if 0 <= (position[0] - 1) <= 7 and 0 <= (position[1] - 1) <= 7 and \
+                    (position[0] - 1, position[1] - 1) in state.red:
+                result.append((position[0] - 1, position[1] - 1))
+            if 0 <= (position[0] + 1) <= 7 and 0 <= (position[1] - 1) <= 7 and \
+                    (position[0] + 1, position[1] - 1) in state.red:
+                result.append((position[0] + 1, position[1] - 1))
     return result
 
 
@@ -222,5 +364,12 @@ def utility(state: State, player: str) -> int:
 
 
 if __name__ == '__main__':
-    s = State()
-    print(s)
+    state1 = State()
+    print(state1)
+    state2 = clone(state1)
+    # state2.black = {(1, 3): 'b'}
+    # state2.red = {(0, 6): 'r', (2, 6): 'r', (4, 6): 'r', (6, 6): 'r', (2, 4): 'r'}
+    state2.black = {(0, 1): 'b', (2, 1): 'b', (4, 1): 'b', (6, 1): 'b', (5, 2): 'b', (2, 6): 'b'}
+    state2.red = {(3, 4): 'R', (1, 7): 'R', (4, 3): 'r'}
+    surr = get_surr(state2, (3, 4), 'r')
+    lst = expand(state2, 'b')
