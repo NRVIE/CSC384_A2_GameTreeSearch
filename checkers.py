@@ -61,6 +61,29 @@ class State:
 
         return result
 
+    def __eq__(self, other):
+        """
+        Return True if all items in other's red and black are same as self's
+        """
+        # Check whether they have same number of elements in red and black map
+        if len(self.red) != len(other.red) \
+                or len(self.black) != len(other.black):
+            return False
+
+        # Check all key and the corresponding value of that key are
+        # same in self's and other's red and black map
+        for key in self.red:
+            if key not in other.red:
+                return False
+            elif self.red[key] != other.red[key]:
+                return False
+        for key in self.black:
+            if key not in other.black:
+                return False
+            elif self.black[key] != other.black[key]:
+                return False
+        return True
+
     def move(self, position: tuple, destination: tuple) -> None:
         """
         Move the piece on the given position to destination position.
@@ -126,6 +149,76 @@ class State:
         else:
             print("ERROR: not eligible move: same color in position and destination")
         return
+
+
+def expand(state: State, player: str) -> list[State]:
+    """
+    Return all the possible successor of state.
+    Assume the input of player is either 'r' or 'b' ('r' for red, 'b' for black).
+    """
+    result = []
+    if player == 'r':
+        for key in state.red:
+            # Clone 4 states for movement
+            s1 = clone(state)
+            s2 = clone(state)
+            s3 = clone(state)
+            s4 = clone(state)
+            if state.red[key] == 'r':
+                # man can only move forward
+                s1.move(key, (key[0] + 1, key[1] - 1))
+                s2.move(key, (key[0] - 1, key[1] - 1))
+                for i in [s1, s2]:
+                    if i != state and i not in result:
+                        result.append(i)
+            else:
+                # King can move forward and backward
+                s1.move(key, (key[0] + 1, key[1] - 1))
+                s2.move(key, (key[0] - 1, key[1] - 1))
+                s3.move(key, (key[0] + 1, key[1] + 1))
+                s4.move(key, (key[0] - 1, key[1] + 1))
+                for i in [s1, s2, s3, s4]:
+                    if i != state and i not in result:
+                        result.append(i)
+    else:
+        for key in state.black:
+            # Clone 4 states for movement
+            s1 = clone(state)
+            s2 = clone(state)
+            s3 = clone(state)
+            s4 = clone(state)
+            if state.black[key] == 'b':
+                # man can only move forward
+                s1.move(key, (key[0] + 1, key[1] + 1))
+                s2.move(key, (key[0] - 1, key[1] + 1))
+                for i in [s1, s2]:
+                    if i != state and i not in result:
+                        result.append(i)
+            else:
+                # King can move forward and backward
+                s1.move(key, (key[0] + 1, key[1] - 1))
+                s2.move(key, (key[0] - 1, key[1] - 1))
+                s3.move(key, (key[0] + 1, key[1] + 1))
+                s4.move(key, (key[0] - 1, key[1] + 1))
+                for i in [s1, s2, s3, s4]:
+                    if i != state and i not in result:
+                        result.append(i)
+    return result
+
+
+def clone(state: State) -> State:
+    """Return a same State without aliasing"""
+    c = State()
+    for key in state.red:
+        c.red[key] = state.red[key]
+    for key in state.black:
+        c.black[key] = state.black[key]
+    return c
+
+
+def utility(state: State, player: str) -> int:
+    """Return a int calculate by utility function."""
+    # TODO: Implement utility function
 
 
 if __name__ == '__main__':
