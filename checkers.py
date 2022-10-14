@@ -186,6 +186,7 @@ def txt_to_state(file: str) -> State:
                 result.black[(x, y)] = 'b'
             elif str_lst[y][x] == 'B':
                 result.black[(x, y)] = 'B'
+    f.close()
     return result
 
 
