@@ -417,10 +417,11 @@ def heuristic(state: State) -> int:
     Calculation:
         - Each red man piece worth 1 point and King worth 2 points
         - Each black man piece worth -1 point and King worth -2 points
-        - Each piece of black piece that cannot move +2 points
-        - Each piece of red piece that cannot move -2 points
-        - If any piece of player may be captured in next expand
-          +/- 1 point for each man and +/- 3 points for each King (not implemented)
+        - Each piece of black piece that cannot move +1 points
+        - Each piece of red piece that cannot move -1 points
+        - Find any pyramid is built (+/- 1 for each)
+        - King is safety or not (if not Red King not safe,
+          which is going to be captured next term, -2; Otherwise, vice versa).
     """
     value = 0
     for key in state.red:
@@ -428,18 +429,79 @@ def heuristic(state: State) -> int:
             value += 1
         else:
             value += 2
+            # If the head of pyramid is a King, then even the King is on the edge,
+            # the piece beside it also count a pyramid.
+            # Also, if a King is on the edge, it is safety
+            # (want to keep King as possible as we can) which +/- 1 point.
+            if key[0] == 0:
+                value += 1
+                if (key[0] + 1, key[1] + 1) in state.red:
+                    value += 1
+            elif key[0] == 7:
+                value += 1
+                if (key[0] - 1, key[1] + 1) in state.red:
+                    value += 1
+            if get_surr(state, key, 'r') == []:
+                value += 2
         # Does that piece able to move?
         if len(expand_single(state, key, 'r')) == 0:
-            value -= 2
+            value -= 1
+        # Find pyramid red had
+        if 0 < key[0] < 7 and key[1] < 7:
+            if (key[0] - 1, key[1] + 1) in state.red and \
+                    (key[0] + 1, key[1] + 1) in state.red:
+                value += 1
+
+        # Vertical prediction
+        if (key[0], key[0] - 2) in state.black and key[0] == 1 and 3 <= key[1]:
+            empty_lst = [(key[0] - 1, key[0] - 1), (key[0] + 1, key[0] - 3)]
+            empty = True
+            for space in empty_lst:
+                if space in state.black or space in state.red:
+                    empty = False
+            if empty:
+                if state.black[(key[0], key[0] - 2)] == 'b':
+                    value += 1
+                else:
+                    value += 2
+
+        if (key[0], key[0] - 2) in state.black and key[0] == 6 and 3 <= key[1]:
+            empty_lst = [(key[0] + 1, key[0] - 1), (key[0] - 1, key[0] - 3)]
+            empty = True
+            for space in empty_lst:
+                if space in state.black or space in state.red:
+                    empty = False
+            if empty:
+                if state.black[(key[0], key[0] - 2)] == 'b':
+                    value += 1
+                else:
+                    value += 2
 
     for key in state.black:
         if state.black[key] == 'b':
             value -= 1
         else:
             value -= 2
+            # If the head of pyramid is a King, then even the King is on the edge,
+            # the piece beside it also count a pyramid.
+            if key[0] == 0:
+                value -= 1
+                if (key[0] + 1, key[1] - 1) in state.black:
+                    value -= 1
+            elif key[0] == 7:
+                value -= 1
+                if (key[0] - 1, key[1] - 1) in state.black:
+                    value -= 1
+            if get_surr(state, key, 'b') == []:
+                value -= 2
         # Does that piece able to move?
         if len(expand_single(state, key, 'b')) == 0:
-            value += 2
+            value += 1
+        # Find pyramid red had
+        if 0 < key[0] < 7 and 0 < key[1]:
+            if (key[0] - 1, key[1] - 1) in state.black and \
+                    (key[0] + 1, key[1] - 1) in state.black:
+                value -= 1
 
     return value
 
@@ -469,7 +531,7 @@ def max_value(state: State, a: float, b: float, d_limit: int):
             value = nxt_v
             best_move = successor
         # alpha-beta pruning
-        if value >= b:
+        if value > b:
             return best_move, value
         a = max(a, value)
     return best_move, value
@@ -492,7 +554,7 @@ def min_value(state: State, a: float, b: float, d_limit: int):
             value = nxt_v
             best_move = successor
         # alpha-beta pruning
-        if value <= a:
+        if value < a:
             return best_move, value
         b = min(b, value)
     return best_move, value
@@ -512,16 +574,15 @@ def rearrange(ex_lst: list[State], reverse: bool) -> list[State]:
 
 
 if __name__ == '__main__':
-    state1 = State()
-    print(state1)
-    state2 = clone(state1)
-    state2.black = {(7, 6): 'b'}
-    state2.red = {(6, 7): 'R'}
-    state3 = clone(state1)
-    state3.black = {(1, 3): 'b'}
-    state3.red = {(0, 6): 'r', (2, 6): 'r', (4, 6): 'r', (6, 6): 'r', (2, 4): 'r'}
+    if len(sys.argv) != 3:
+        sys.exit("Error: Please provide exactly four arguments")
+    else:
+        s = txt_to_state(sys.argv[1])
+        res_state = ab_search(s, 7)
 
-    print(heuristic(state2), heuristic(state3))
-    # surr = get_surr(state2, (3, 4), 'r')
-    # test_lst = expand(state2, 'b')
-    # bol = terminal(state2)
+        # Write the solution to target file
+        res_file = open(sys.argv[2], 'w')
+        # Write solution to res_file
+        res_file.write(res_state.__str__())
+        # Close files
+        res_file.close()
